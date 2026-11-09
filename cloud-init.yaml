@@ -1,0 +1,20 @@
+#cloud-config
+# ocibox first-boot setup: joins the VM to your Tailscale network so you can reach it
+# privately. Everything else is done by server/install.sh, which you run yourself.
+package_update: true
+package_upgrade: true
+packages:
+  - jq
+  - curl
+  - ca-certificates
+
+runcmd:
+  # Oracle's Ubuntu images ship a strict iptables policy (only SSH allowed in).
+  # Allow Tailscale's interface and its UDP port, then persist (before Docker exists).
+  - [bash, -c, "iptables -C INPUT -i tailscale0 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -i tailscale0 -j ACCEPT"]
+  - [bash, -c, "iptables -C INPUT -p udp --dport 41641 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 41641 -j ACCEPT"]
+  - [bash, -c, "command -v netfilter-persistent >/dev/null && netfilter-persistent save || true"]
+  # Install Tailscale and join the tailnet as "ocibox".
+  - [bash, -c, "curl -fsSL https://tailscale.com/install.sh | sh"]
+  - [bash, -c, "tailscale up --authkey='__TS_AUTHKEY__' --hostname=ocibox"]
+  - [bash, -c, "echo 'ocibox: cloud-init finished' > /var/log/ocibox-cloud-init.done"]

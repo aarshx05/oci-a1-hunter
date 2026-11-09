@@ -1,0 +1,60 @@
+name: a1-hunter
+
+# Every 15 minutes, hunt for ~12 minutes. Stops itself (disables this workflow) once the VM exists.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "How long to hunt in this run (minutes)"
+        default: "12"
+
+permissions:
+  contents: read
+  actions: write   # to disable this workflow after success
+  issues: write    # to open an issue = email notification to you
+
+concurrency:
+  group: a1-hunter
+  cancel-in-progress: false
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: hunter/requirements.txt
+
+      - run: pip install -q -r hunter/requirements.txt
+
+      - id: hunt
+        name: Hunt for A1 capacity
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_REGION: ${{ vars.OCI_REGION }}
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+          SSH_PUBKEY: ${{ vars.SSH_PUBKEY }}
+          SHAPES: ${{ vars.SHAPES }}
+        run: python hunter/hunter.py --minutes "${{ github.event.inputs.minutes || '12' }}"
+
+      - name: Notify and stop hunting
+        if: steps.hunt.outputs.got_vm == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "ocibox VM created (${{ steps.hunt.outputs.shape }})" \
+            --body "The A1 hunter got your VM. Next: open OCI Cloud Shell and run ./provision.sh again - it finds the VM and finishes the setup. Then delete the OCI API key used by this repo (Profile > API keys). This workflow has disabled itself." \
+            || true
+          gh workflow disable a1-hunter.yml --repo "$GITHUB_REPOSITORY"
