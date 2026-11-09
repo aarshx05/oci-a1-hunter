@@ -41,10 +41,10 @@ jobs:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
-          OCI_REGION: ${{ vars.OCI_REGION }}
+          OCI_REGION: ${{ vars.OCI_REGION || 'ap-mumbai-1' }}
           OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
           TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
-          SSH_PUBKEY: ${{ vars.SSH_PUBKEY }}
+          SSH_PUBKEY: ${{ vars.SSH_PUBKEY || 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwCWgF/8G9dEZzz91gh4j0mpSltJL42Qr0MNEhlQVTz 12345@AsusTUFA15' }}
           SHAPES: ${{ vars.SHAPES }}
         run: python hunter/hunter.py --minutes "${{ github.event.inputs.minutes || '12' }}"
 
