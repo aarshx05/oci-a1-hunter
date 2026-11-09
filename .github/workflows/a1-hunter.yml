@@ -1,9 +1,12 @@
 name: a1-hunter
 
-# Every 15 minutes, hunt for ~12 minutes. Stops itself (disables this workflow) once the VM exists.
+# Each run hunts ~12 minutes, then starts the next run itself (self-chaining), so the hunt
+# continues back-to-back. The cron below is only a backup that restarts the chain if it ever
+# breaks (GitHub's scheduler is often delayed/skipped, especially for new repos and at :00/:15).
+# Everything stops itself (workflow disabled) once the VM exists.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       minutes:
@@ -58,3 +61,11 @@ jobs:
             --body "The A1 hunter got your VM. Next: open OCI Cloud Shell and run ./provision.sh again - it finds the VM and finishes the setup. Then delete the OCI API key used by this repo (Profile > API keys). This workflow has disabled itself." \
             || true
           gh workflow disable a1-hunter.yml --repo "$GITHUB_REPOSITORY"
+
+      - name: Start the next hunt (self-chaining)
+        if: success() && steps.hunt.outputs.got_vm != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/a1-hunter.yml/dispatches" -f ref=main
+          echo "next run queued"
